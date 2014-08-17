@@ -122,6 +122,7 @@ if  @isInband=="1" && @isZFS=="/nas/config/isZFS"
 					print "Error option : #{ARGV[1]}\n"
 				else
 					which_box=dev_sg[0].to_i
+					which_box -=1;
 					which_disks=dev_sg[1].split(",")
 				
 					# turn string array to integer array
@@ -159,6 +160,7 @@ if  @isInband=="1" && @isZFS=="/nas/config/isZFS"
 					print "Error option : #{ARGV[1]}\n"
 				else
 					which_box=dev_sg[0].to_i
+					which_box-=1;
 					which_disks=dev_sg[1].split(",")
 				
 					# turn string array to integer array
