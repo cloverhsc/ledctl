@@ -1,8 +1,8 @@
 #!/usr/local/bin/ruby
 #2014-07-14 discus with J.K  when he scan all hardisks on monitor and get all disks failed on which slots .
 #1'st ledctl [off/on] all    
-#2'ed ledctl on  1:2,4.....       "1"~for local nas.  ":"~ after this will slot number you will select. "2,4"~slot 2 & 4  led light on
-#3'rd ledctl off 2:3,5.....       "2"~for first expend/enclosure box . 
+#2'ed ledctl on  1:2,4.....	  "1"=>NAS, after are expend box or enclosure box.
+#3'rd ledctl off 2:3,5....     
 #4'th ledctl --info
 
 dev_sg=Array.new()
@@ -16,6 +16,8 @@ ses_slots_2=0                   #for ses board hwmon2 slots counts
 @isZFS =`ls /nas/config/isZFS 2>/dev/null`
 @isZFS.chomp!
 
+@hwmon=Hash.new()                        										#To save encboard hwmontX
+@column=`ls /sys/class/hwmon/ -l`.split(/\n/)									#scan all hardware monitor files
 hw1_stat=0
 hw2_stat=0
 
@@ -75,9 +77,39 @@ def led_info()
 	elsif @isInband !="1" && @isZFS=="/nas/config/isZFS"
 		inband="No"
 		enc="0"
+		for i in 1...@column.size
+
+			if @column[i].index("usb2") && @column[i].index("001f")                 #nas led 1~8
+					 str=@column[i]
+					 str.chomp!
+					 @hwmon["nas1_1"]="hwmon"+str[str.length-1]
+			end
+
+			if @column[i].index("usb2") && @column[i].index("001e")                 #nas led 9-16
+					 str=@column[i]
+					 str.chomp!
+					 @hwmon["nas1_2"]="hwmon"+str[str.length-1]
+			end
+
+			if !@column[i].index("usb2") && @column[i].index("001f")                 #expand box 1~8
+					 str=@column[i]
+					 str.chomp!
+					 @hwmon["expbox1_1"]="hwmon"+str[str.length-1]
+			end
+
+			if !@column[i].index("usb2") && @column[i].index("001e")                 #expand box 9~16
+					 str=@column[i]
+					 str.chomp!
+					 @hwmon["expbox1_2"]="hwmon"+str[str.length-1]
+			end
+
+		end
 		print  "inband:#{inband}\n"
 		print  "zfs:#{zfs}\n"
 		print  "enc:#{enc}\n"
+		@hwmon.each{|key,value|
+		print key,"=>",value,"\n"
+		}
 	else
 		inband="Unknow"
 		zfs = "No"
@@ -122,7 +154,7 @@ if  @isInband=="1" && @isZFS=="/nas/config/isZFS"
 					print "Error option : #{ARGV[1]}\n"
 				else
 					which_box=dev_sg[0].to_i
-					which_box -=1;
+					which_box -=1;							# our NAS is number is 1 =>  ledctl on 1:2,4    => NAS led on  on slot 2,4
 					which_disks=dev_sg[1].split(",")
 				
 					# turn string array to integer array
@@ -160,7 +192,7 @@ if  @isInband=="1" && @isZFS=="/nas/config/isZFS"
 					print "Error option : #{ARGV[1]}\n"
 				else
 					which_box=dev_sg[0].to_i
-					which_box-=1;
+					which_box -=1								# our NAS is number is 1 =>  ledctl off 1:2,4    => NAS led off  on slot 2,4 
 					which_disks=dev_sg[1].split(",")
 				
 					# turn string array to integer array
@@ -203,93 +235,271 @@ elsif @isZFS=="/nas/config/isZFS" && @isInband !="1"
              #if you light on over 9'rd leds. you need echo (X) > /sys/class/hwmon/hwmon2/device/ledstate
              # echo 0 > ........at the hwmon'X', the hwmon'X'  all off
 
+	encbd_count=`lsusb|grep c631|awk '{print NR}'`				#	get 1 encboard or 2
+	encbd_count.chomp!
+	encbd_count=encbd_count.gsub(/\n/,' ')
+	
 
-        `chmod 600 /sys/class/hwmon/hwmon2/device/ledstate`
-        `chmod 600 /sys/class/hwmon/hwmon1/device/ledstate`
-        hw1_stat=`cat /sys/class/hwmon/hwmon2/device/ledstate`.to_i
-        hw2_stat=`cat /sys/class/hwmon/hwmon1/device/ledstate`.to_i
-    if ARGV[0] =="on" && ARGV[1]!=nil
+	for i in 1...@column.size
 
-        if ARGV[1]=="all"
-            `echo 255 > /sys/class/hwmon/hwmon2/device/ledstate`
-            `echo 255 > /sys/class/hwmon/hwmon1/device/ledstate`
-        else
+			if @column[i].index("usb2") && @column[i].index("001f")                 #nas led 1~8
+					 str=@column[i]
+					 str.chomp!
+					 @hwmon["nas1_1"]="hwmon"+str[str.length-1]
+			end
 
-            dev_sg=ARGV[1].split(":")	# no enclosure box so pass enclosure number
-			text=dev_sg[1].split(",") 	# get slot number
-            ses_slots_1=hw1_stat
-            ses_slots_2=hw2_stat
+			if @column[i].index("usb2") && @column[i].index("001e")                 #nas led 9-16
+					 str=@column[i]
+					 str.chomp!
+					 @hwmon["nas1_2"]="hwmon"+str[str.length-1]
+			end
 
-            #turn string array to integer
-            for i in 0..(text.length-1)
+			if !@column[i].index("usb2") && @column[i].index("001f")                 #expand box 1~8
+					 str=@column[i]
+					 str.chomp!
+					 @hwmon["expbox1_1"]="hwmon"+str[str.length-1]
+			end
 
-              text[i]=text[i].to_i
+			if !@column[i].index("usb2") && @column[i].index("001e")                 #expand box 9~16
+					 str=@column[i]
+					 str.chomp!
+					 @hwmon["expbox1_2"]="hwmon"+str[str.length-1]
+			end
 
-            end
-			
-            for i in 0..(text.length-1)
-                if text[i]>=1 && text[i] <=8                   #hwmon1
-                  text[i] -=1
-                  @tmp= 1 << text[i]
-                  ses_slots_1=@tmp|hw1_stat
-                  hw1_stat=ses_slots_1
-                elsif text[i] >= 9 && text[i] <=16                #hwmon2
-                  text[i] -= 9
-                  @tmp = 1 << text[i]
-                  ses_slots_2 = @tmp|hw2_stat
-                  hw2_stat=ses_slots_2
-                end
-            end
+	end
+	if encbd_count[encbd_count.length-1] =="2"										#High point HBA with expend box
+	
 
-               `echo #{ses_slots_1} > /sys/class/hwmon/hwmon2/device/ledstate`
+			`chmod 600 /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`
+			`chmod 600 /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+			`chmod 600 /sys/class/hwmon/#{@hwmon["expbox1_1"]}/device/ledstate`
+			`chmod 600 /sys/class/hwmon/#{@hwmon["expbox1_2"]}/device/ledstate`
+			hw1_1_stat=`cat /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`.to_i			#nas enc 1-8 led
+			hw1_2_stat=`cat /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`.to_i			#nas enc 9-16 led
+			hw2_1_stat=`cat /sys/class/hwmon/#{@hwmon["expbox1_1"]}/device/ledstate`.to_i			#expend-box 1-8
+			hw2_2_stat=`cat /sys/class/hwmon/#{@hwmon["expbox1_2"]}/device/ledstate`.to_i			#expend-box 9-16
+		if ARGV[0] =="on" && ARGV[1]!=nil
 
-               `echo #{ses_slots_2} > /sys/class/hwmon/hwmon1/device/ledstate`
+			if ARGV[1]=="all"
+				`echo 255 > /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`				
+				`echo 255 > /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+				`echo 255 > /sys/class/hwmon/#{@hwmon["expbox1_1"]}/device/ledstate`
+				`echo 255 > /sys/class/hwmon/#{@hwmon["expbox1_2"]}/device/ledstate`
+			else
 
-        end
-    elsif ARGV[0] =="off" && ARGV[1]!=nil
+				dev_sg=ARGV[1].split(":")	# 1 enclosure box so check it
+				text=dev_sg[1].split(",") 	# get slot number
+				ses_slots_1_1=hw1_1_stat
+				ses_slots_1_2=hw1_2_stat
+				ses_slots_2_1=hw2_1_stat
+				ses_slots_2_2=hw2_2_stat
 
-        if  ARGV[1]=="all"
-                `echo 0 > /sys/class/hwmon/hwmon2/device/ledstate`
-                `echo 0 > /sys/class/hwmon/hwmon1/device/ledstate`
-        else
+				#turn string array to integer
+				for i in 0..(text.length-1)
+
+				  text[i]=text[i].to_i
+
+				end
+				
+				if dev_sg[0] =="1"
+					for i in 0..(text.length-1)
+						if text[i]>=1 && text[i] <=8                   #hwmon1_1
+						  text[i] -=1
+						  @tmp= 1 << text[i]
+						  ses_slots_1_1=@tmp|hw1_1_stat
+						  hw1_1_stat=ses_slots_1_1
+						elsif text[i] >= 9 && text[i] <=16                #hwmon1_2
+						  text[i] -= 9
+						  @tmp = 1 << text[i]
+						  ses_slots_1_2 = @tmp|hw1_2_stat
+						  hw1_2_stat=ses_slots_1_2
+						end
+					end
+
+					   `echo #{ses_slots_1_1} > /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`
+
+					   `echo #{ses_slots_1_2} > /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+				elsif dev_sg[0]=="2"
+					for i in 0..(text.length-1)
+						if text[i]>=1 && text[i] <=8                   #hwmon2_1
+						  text[i] -=1
+						  @tmp= 1 << text[i]
+						  ses_slots_2_1=@tmp|hw2_1_stat
+						  hw2_1_stat=ses_slots_2_1
+						elsif text[i] >= 9 && text[i] <=16                #hwmon2_2
+						  text[i] -= 9
+						  @tmp = 1 << text[i]
+						  ses_slots_2_2 = @tmp|hw2_2_stat
+						  hw2_2_stat=ses_slots_2_2
+						end
+					end
+
+					   `echo #{ses_slots_2_1} > /sys/class/hwmon/#{@hwmon["expbox1_1"]}/device/ledstate`
+
+					   `echo #{ses_slots_2_2} > /sys/class/hwmon/#{@hwmon["expbox1_2"]}/device/ledstate`
+				end
+			end
+		elsif ARGV[0] =="off" && ARGV[1]!=nil
+
+			if  ARGV[1]=="all"
+					`echo 0 > /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`
+					`echo 0 > /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+					`echo 0 > /sys/class/hwmon/#{@hwmon["expbox1_1"]}/device/ledstate`
+					`echo 0 > /sys/class/hwmon/#{@hwmon["expbox1_2"]}/device/ledstate`
+			else
 
 
-            dev_sg=ARGV[1].split(":")	# no enclosure box so pass enclosure number
-			text=dev_sg[1].split(",") 	# get slot number
-             ses_slots_1=hw1_stat
-             ses_slots_2=hw2_stat
+				dev_sg=ARGV[1].split(":")	#  1 enclosure box so check it
+				text=dev_sg[1].split(",") 	# get slot number
+				ses_slots_1_1=hw1_1_stat
+				ses_slots_1_2=hw1_2_stat
+				ses_slots_2_1=hw2_1_stat
+				ses_slots_2_2=hw2_2_stat
 
-             #turn string array to integer
-             for i in 0..(text.length-1)
+				 #turn string array to integer
+				 for i in 0..(text.length-1)
 
-               text[i]=text[i].to_i
+				   text[i]=text[i].to_i
 
-             end
+				 end
+				
+				if dev_sg[0]=="1"
+					 #led off
+					 for i in 0..(text.length-1)
+						if text[i]>=1 && text[i] <=8                   #hwmon1_1
+						  text[i] -= 1
+						  @tmp= 1 << text[i]
+						  ses_slots_1_1=@tmp^hw1_1_stat
+						  hw1_1_stat=ses_slots_1_1
+						elsif text[i] >= 9 && text[i] <=16                #hwmon1_2
+						  text[i] -= 9
+						  @tmp = 1 << text[i]
+						  ses_slots_1_2 = @tmp^hw1_2_stat
+						  hw1_2_stat=ses_slots_1_2
+						end
 
-             #led off
-             for i in 0..(text.length-1)
-                if text[i]>=1 && text[i] <=8                   #hwmon1
-                  text[i] -= 1
-                  @tmp= 1 << text[i]
-                  ses_slots_1=@tmp^hw1_stat
-                  hw1_stat=ses_slots_1
-                elsif text[i] >= 9 && text[i] <=16                #hwmon2
-                  text[i] -= 9
-                  @tmp = 1 << text[i]
-                  ses_slots_2 = @tmp^hw2_stat
-                  hw2_stat=ses_slots_2
-                end
+					 end
 
-             end
+					   `echo #{ses_slots_1_1} > /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`
 
-               `echo #{ses_slots_1} > /sys/class/hwmon/hwmon2/device/ledstate`
+					   `echo #{ses_slots_1_2} > /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+				elsif dev_sg[0]=="2"
+					#led off
+					 for i in 0..(text.length-1)
+						if text[i]>=1 && text[i] <=8                   #hwmon2_1
+						  text[i] -= 1
+						  @tmp= 1 << text[i]
+						  ses_slots_2_1=@tmp^hw2_1_stat
+						  hw2_1_stat=ses_slots_2_1
+						elsif text[i] >= 9 && text[i] <=16                #hwmon2_2
+						  text[i] -= 9
+						  @tmp = 1 << text[i]
+						  ses_slots_2_2 = @tmp^hw2_2_stat
+						  hw2_2_stat=ses_slots_2_2
+						end
 
-               `echo #{ses_slots_2} > /sys/class/hwmon/hwmon1/device/ledstate`
-        end
-	elsif ARGV[0]=="--info"
-		led_info()	
-    else
-        print "Error option!\n"
+					 end
 
-    end
+					   `echo #{ses_slots_2_1} > /sys/class/hwmon/#{@hwmon["expbox1_1"]}/device/ledstate`
+
+					   `echo #{ses_slots_2_2} > /sys/class/hwmon/#{@hwmon["expbox1_2"]}/device/ledstate`
+				end
+			end
+		elsif ARGV[0]=="--info"
+			led_info()	
+		else
+			print "Error option!\n"
+
+		end
+	
+	elsif encbd_count[encbd_count.length-1] =="1"	
+			`chmod 600 /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`
+			`chmod 600 /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+			hw1_stat=`cat /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`.to_i
+			hw2_stat=`cat /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`.to_i
+		if ARGV[0] =="on" && ARGV[1]!=nil
+
+			if ARGV[1]=="all"
+				`echo 255 > /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`
+				`echo 255 > /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+			else
+
+				dev_sg=ARGV[1].split(":")	# no enclosure box so pass enclosure number
+				text=dev_sg[1].split(",") 	# get slot number
+				ses_slots_1=hw1_stat
+				ses_slots_2=hw2_stat
+
+				#turn string array to integer
+				for i in 0..(text.length-1)
+
+				  text[i]=text[i].to_i
+
+				end
+				
+				for i in 0..(text.length-1)
+					if text[i]>=1 && text[i] <=8                   #hwmon1
+					  text[i] -=1
+					  @tmp= 1 << text[i]
+					  ses_slots_1=@tmp|hw1_stat
+					  hw1_stat=ses_slots_1
+					elsif text[i] >= 9 && text[i] <=16                #hwmon2
+					  text[i] -= 9
+					  @tmp = 1 << text[i]
+					  ses_slots_2 = @tmp|hw2_stat
+					  hw2_stat=ses_slots_2
+					end
+				end
+
+				   `echo #{ses_slots_1} > /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`
+
+				   `echo #{ses_slots_2} > /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+
+			end
+		elsif ARGV[0] =="off" && ARGV[1]!=nil
+
+			if  ARGV[1]=="all"
+					`echo 0 > /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`
+					`echo 0 > /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+			else
+
+
+				dev_sg=ARGV[1].split(":")	# no enclosure box so pass enclosure number
+				text=dev_sg[1].split(",") 	# get slot number
+				 ses_slots_1=hw1_stat
+				 ses_slots_2=hw2_stat
+
+				 #turn string array to integer
+				 for i in 0..(text.length-1)
+
+				   text[i]=text[i].to_i
+
+				 end
+
+				 #led off
+				 for i in 0..(text.length-1)
+					if text[i]>=1 && text[i] <=8                   #hwmon1
+					  text[i] -= 1
+					  @tmp= 1 << text[i]
+					  ses_slots_1=@tmp^hw1_stat
+					  hw1_stat=ses_slots_1
+					elsif text[i] >= 9 && text[i] <=16                #hwmon2
+					  text[i] -= 9
+					  @tmp = 1 << text[i]
+					  ses_slots_2 = @tmp^hw2_stat
+					  hw2_stat=ses_slots_2
+					end
+
+				 end
+
+				   `echo #{ses_slots_1} > /sys/class/hwmon/#{@hwmon["nas1_1"]}/device/ledstate`
+
+				   `echo #{ses_slots_2} > /sys/class/hwmon/#{@hwmon["nas1_2"]}/device/ledstate`
+			end
+		elsif ARGV[0]=="--info"
+			led_info()	
+		else
+			print "Error option!\n"
+
+		end
+	end
 end
